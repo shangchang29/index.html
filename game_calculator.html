@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遊戲每日精細化收益模擬器（含初始資產設定）</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1250px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        h1 {
+            text-align: center;
+            color: #1a3a5f;
+            margin-bottom: 5px;
+        }
+        .date-badge {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 1.05rem;
+            margin-bottom: 25px;
+            font-weight: bold;
+        }
+        .date-badge span { color: #e67e22; }
+        
+        /* 初始資產與調整區樣式 */
+        .setting-panel {
+            background: #f8f9fa;
+            border: 1px solid #dcdde1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        .setting-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .setting-group label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .setting-group input[type="number"] {
+            width: 120px;
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+
+        .table-container { margin-bottom: 30px; }
+        h2 {
+            font-size: 1.3rem;
+            color: #2c3e50;
+            border-left: 5px solid #3498db;
+            padding-left: 10px;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 10px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f7f9fa;
+            color: #4a5568;
+            font-weight: 600;
+        }
+        tr:nth-child(even) { background-color: #fcfdfe; }
+        tr.selected-row { background-color: #e8f4fd !important; }
+        .checkbox-cell { text-align: center; width: 50px; }
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
+        input[type="date"] { padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        .cost-text { color: #e67e22; font-weight: bold; }
+        .note-text { font-size: 0.85rem; color: #7f8c8d; }
+        
+        /* 每日日誌樣式 */
+        .log-table th { background-color: #2c3e50; color: white; }
+        .log-date { font-weight: bold; color: #34495e; width: 110px; }
+        .log-events { font-size: 0.9rem; color: #555; }
+        .tag-init { background: #16a085; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 5px; font-weight: bold; }
+        .tag-item { background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 5px; font-weight: bold; }
+        .tag-task { background: #3498db; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 5px; }
+        .num-plus { color: #2ecc71; font-weight: bold; font-size: 0.9rem; }
+        .num-minus { color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
+        .num-accum { color: #16a085; font-weight: bold; }
+
+        /* 底部結果看板 */
+        .dashboard {
+            background: #1a3a5f;
+            color: white;
+            padding: 25px;
+            border-radius: 8px;
+            position: sticky;
+            bottom: 20px;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .dashboard-title { font-size: 1.2rem; margin-bottom: 15px; font-weight: bold; border-bottom: 1px solid #34495e; padding-bottom: 5px; }
+        .grid-4 { display: table; width: 100%; }
+        .grid-cell { display: table-cell; width: 25%; text-align: center; vertical-align: middle; }
+        .dash-label { font-size: 0.95rem; color: #bdc3c7; }
+        .dash-val { font-size: 2rem; font-weight: bold; margin-top: 5px; }
+        .val-xiuwei { color: #2ecc71; }
+        .val-gold { color: #f1c40f; }
+        .val-cost { color: #ff7675; }
+        .val-netgold { color: #54a0ff; }
+
+        /* 日誌滾動外框 */
+        .log-scroll-box {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎮 遊戲每日精細化收益模擬器</h1>
+    <div class="date-badge">模擬排程區間：<span>6/1 ~ 7/22</span> (共計 <span>52 天</span>)</div>
+
+    <div class="setting-panel">
+        <div style="font-weight: bold; color: #2c3e50; font-size: 1.1rem; border-right: 2px solid #ccc; padding-right: 15px;">⚙️ 臨時調整 / 初始資產</div>
+        <div class="setting-group">
+            <label for="initXiuweiInput">初始修為：</label>
+            <input type="number" id="initXiuweiInput" value="0" min="0" oninput="calculate()">
+        </div>
+        <div class="setting-group">
+            <label for="initGoldInput">初始金幣：</label>
+            <input type="number" id="initGoldInput" value="0" min="0" oninput="calculate()">
+        </div>
+        <div style="font-size: 0.85rem; color: #7f8c8d;">※ 此數值將作為 6/1 模擬起點的開局資產基礎。</div>
+    </div>
+
+    <div class="table-container">
+        <h2>1. 設定道具購買/啟用日期</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="checkbox-cell">啟用</th>
+                    <th>道具名稱</th>
+                    <th>購買/啟用日期</th>
+                    <th>花費用 (金幣)</th>
+                    <th>效果備註</th>
+                </tr>
+            </thead>
+            <tbody id="itemTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="table-container">
+        <h2>2. 選擇在此區間內要「持續進行」的任務</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="checkbox-cell">進行</th>
+                    <th>任務名稱</th>
+                    <th>原始頻率</th>
+                    <th>單次修為</th>
+                    <th>單次金幣</th>
+                    <th>時程分佈提示</th>
+                </tr>
+            </thead>
+            <tbody id="taskTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="table-container">
+        <h2>3. 6/1 - 7/22 每日數值與資產變化歷史日誌</h2>
+        <div class="log-scroll-box">
+            <table class="log-table" style="margin-bottom: 0;">
+                <thead>
+                    <tr>
+                        <th>日期 (星期)</th>
+                        <th>當日動態</th>
+                        <th>當日修為變化</th>
+                        <th>當日金幣變化</th>
+                        <th>累計總修為 (含初始)</th>
+                        <th>手頭現貨金幣 (含初始與扣費)</th>
+                    </tr>
+                </thead>
+                <tbody id="logTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="dashboard-title">📊 最終時間軸模擬總結看板</div>
+        <div class="grid-4">
+            <div class="grid-cell">
+                <div class="dash-label">最終累積總修為</div>
+                <div class="dash-val val-xiuwei" id="totalXiuwei">0</div>
+            </div>
+            <div class="grid-cell">
+                <div class="dash-label">任務賺取總金幣</div>
+                <div class="dash-val val-gold" id="totalGold">0</div>
+            </div>
+            <div class="grid-cell">
+                <div class="dash-label">道具總花費</div>
+                <div class="dash-val val-cost" id="totalCost">0</div>
+            </div>
+            <div class="grid-cell">
+                <div class="dash-label">最終手頭現貨金幣</div>
+                <div class="dash-val val-netgold" id="netGold">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const START_DATE = new Date("2026-06-01");
+    const END_DATE = new Date("2026-07-22");
+    const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+
+    const tasks = [
+        { id: "t1", name: "每日課", type: "daily", xiuwei: 300, gold: 15 },
+        { id: "t2", name: "破曉", type: "daily", xiuwei: 200, gold: 0 }, 
+        { id: "t3", name: "天使通話", type: "weekly_1", xiuwei: 300, gold: 0 },
+        { id: "t4", name: "蓋婭的召喚", type: "weekly_1", xiuwei: 300, gold: 0 },
+        { id: "t5", name: "欣賞夥伴", type: "weekly_1", xiuwei: 300, gold: 100 },
+        { id: "t6", name: "親證分享", type: "weekly_1", xiuwei: 1000, gold: 0 },
+        { id: "t7", name: "心成活動", type: "weekly_2", xiuwei: 600, gold: 0 },
+        { id: "t8", name: "小組定聚", type: "monthly", xiuwei: 2000, gold: 0 },
+        { id: "t9", name: "圓夢計劃親證", type: "weekly_2", xiuwei: 0, gold: 100 },
+        { id: "t10", name: "親證班課後課", type: "once", xiuwei: 0, gold: 200 },
+        { id: "t11", name: "傳愛", type: "weekly_1", xiuwei: 1000, gold: 100 },
+        { id: "t12", name: "主題1", type: "once", xiuwei: 2400, gold: 240 },
+        { id: "t13", name: "主題2", type: "once", xiuwei: 2800, gold: 280 },
+        { id: "t14", name: "主題3", type: "once", xiuwei: 3200, gold: 320 },
+        { id: "t15", name: "主題4", type: "once", xiuwei: 3600, gold: 360 },
+        { id: "t16", name: "巔峰", type: "once", xiuwei: 30000, gold: 0 },
+        { id: "t17", name: "結業典禮", type: "once", xiuwei: 600, gold: 0 },
+        { id: "t18", name: "解圓夢", type: "once", xiuwei: 2000, gold: 0 },
+        { id: "t19", name: "生命蛻變", type: "once", xiuwei: 200, gold: 0 },
+        { id: "t20", name: "生命數字", type: "once", xiuwei: 0, gold: 65 },
+        { id: "t21", name: "告別負債貧窮", type: "once", xiuwei: 0, gold: 130 }
+    ];
+
+    const items = [
+        { id: "i1", name: "火尖槍", cost: 300, desc: "購買後，之後日期的【破曉】任務才能啟動與計分" },
+        { id: "i2", name: "天罡戰鎧", cost: 450, desc: "啟用後，之後的每日課每次額外獲得 100 修為" },
+        { id: "i3", name: "子時", cost: 700, desc: "啟用後，之後的每日課每次額外獲得 150 修為" },
+        { id: "i4", name: "蓋婭聖枝", cost: 500, desc: "啟用後，之後的蓋婭的召喚每次額外獲得 800 修為" },
+        { id: "i5", name: "法袍", cost: 800, desc: "啟用後，之後的心成活動每次額外獲得 600 修為" },
+        { id: "i6", name: "取經", cost: 650, desc: "啟用後，之後完成主題系列每次額外獲得 2000 修為" },
+        { id: "i7", name: "金箍棒", cost: 1300, desc: "啟用後，所有任務+120修為/次，每日課改為+360修為/次" },
+        { id: "i8", name: "玉印", cost: 300, desc: "啟用後，當天以及之後獲得的金幣皆享有 1.3 倍收益" },
+        { id: "i9", name: "筋斗雲", cost: 350, desc: "購買當天，立刻一次性獲得 1000 修為" }
+    ];
+
+    const onceTaskDates = {
+        "t10": "2026-06-05", "t12": "2026-06-10", "t13": "2026-06-17",
+        "t14": "2026-06-24", "t15": "2026-07-01", "t16": "2026-07-08",
+        "t17": "2026-07-15", "t18": "2026-07-18", "t19": "2026-07-20",
+        "t20": "2026-07-21", "t21": "2026-07-22"
+    };
+
+    let activeItems = new Set();
+    let activeTasks = new Set();
+
+    function init() {
+        renderItems();
+        renderTasks();
+        calculate();
+    }
+
+    function renderItems() {
+        const tbody = document.getElementById('itemTableBody');
+        tbody.innerHTML = '';
+        items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.id = `row-${item.id}`;
+            tr.innerHTML = `
+                <td class="checkbox-cell"><input type="checkbox" id="chk-${item.id}" onchange="toggleItem('${item.id}')"></td>
+                <td style="font-weight:bold;">${item.name}</td>
+                <td class="date-input-cell">
+                    <input type="date" id="date-${item.id}" value="2026-06-01" min="2026-06-01" max="2026-07-22" onchange="calculate()">
+                </td>
+                <td class="cost-text">${item.cost}</td>
+                <td class="note-text">${item.desc}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderTasks() {
+        const tbody = document.getElementById('taskTableBody');
+        tbody.innerHTML = '';
+        tasks.forEach(task => {
+            let freqText = "單次";
+            let tips = "-";
+            if(task.type === "daily") freqText = "每天1次";
+            if(task.type === "weekly_1") { freqText = "每週1次"; tips = "每週日執行"; }
+            if(task.type === "weekly_2") { freqText = "每週2次"; tips = "每週三、六執行"; }
+            if(task.type === "monthly") { freqText = "每月1次"; tips = "每月15號執行"; }
+            if(task.type === "once") { tips = `預定 ${onceTaskDates[task.id].substring(5)}`; }
+
+            const tr = document.createElement('tr');
+            tr.id = `row-${task.id}`;
+            tr.innerHTML = `
+                <td class="checkbox-cell"><input type="checkbox" id="chk-${task.id}" onchange="toggleTask('${task.id}')"></td>
+                <td style="font-weight:bold;">${task.name}</td>
+                <td>${freqText}</td>
+                <td>${task.xiuwei}</td>
+                <td>${task.gold}</td>
+                <td class="note-text">${tips}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function toggleItem(id) {
+        const chk = document.getElementById(`chk-${id}`);
+        const row = document.getElementById(`row-${id}`);
+        if (chk.checked) { activeItems.add(id); row.classList.add('selected-row'); }
+        else { activeItems.delete(id); row.classList.remove('selected-row'); }
+        calculate();
+    }
+
+    function toggleTask(id) {
+        const chk = document.getElementById(`chk-${id}`);
+        const row = document.getElementById('row-' + id);
+        if (chk.checked) { activeTasks.add(id); row.classList.add('selected-row'); }
+        else { activeTasks.delete(id); row.classList.remove('selected-row'); }
+        calculate();
+    }
+
+    function calculate() {
+        // 讀取使用者設定的初始資產數字
+        let initXiuwei = parseInt(document.getElementById('initXiuweiInput').value) || 0;
+        let initGold = parseInt(document.getElementById('initGoldInput').value) || 0;
+
+        let totalXiuwei = initXiuwei;
+        let totalGoldEarned = 0; 
+        let totalCost = 0;      
+        let netGoldAccum = initGold; 
+
+        // 算出總花費
+        items.forEach(item => { if (activeItems.has(item.id)) totalCost += item.cost; });
+
+        const logTbody = document.getElementById('logTableBody');
+        logTbody.innerHTML = '';
+
+        let currentDate = new Date(START_DATE);
+        let isFirstDay = true;
+        
+        while (currentDate <= END_DATE) {
+            const currentStr = currentDate.toISOString().split('T')[0];
+            const dayOfWeek = currentDate.getDay();
+            const dayOfMonth = currentDate.getDate();
+            const dateLabel = `${currentStr.substring(5)} (${WEEKDAYS[dayOfWeek]})`;
+
+            let dayXiuwei = 0;
+            let dayGoldChange = 0; 
+            let dayEvents = [];
+
+            // 第一天列出初始注入
+            if (isFirstDay && (initXiuwei > 0 || initGold > 0)) {
+                dayEvents.push(`<span class="tag-init">⚙️ 初始注入 (+${initXiuwei}修 / +${initGold}金)</span>`);
+                isFirstDay = false;
+            }
+
+            let hasItem = (itemId) => {
+                if (!activeItems.has(itemId)) return false;
+                return currentStr >= document.getElementById(`date-${itemId}`).value;
+            };
+
+            // 檢查買道具
+            items.forEach(item => {
+                if (activeItems.has(item.id) && currentStr === document.getElementById(`date-${item.id}`).value) {
+                    dayEvents.push(`<span class="tag-item">🛒 啟用 ${item.name} (-${item.cost}金)</span>`);
+                    dayGoldChange -= item.cost; 
+                }
+            });
+
+            if (activeItems.has('i9') && currentStr === document.getElementById(`date-i9`).value) {
+                dayXiuwei += 1000;
+            }
+
+            // 跑任務
+            tasks.forEach(task => {
+                if (!activeTasks.has(task.id)) return;
+
+                let runToday = false;
+                if (task.type === "daily") {
+                    runToday = (task.id === "t2") ? hasItem("i1") : true; 
+                } 
+                else if (task.type === "weekly_1" && dayOfWeek === 0) runToday = true;
+                else if (task.type === "weekly_2" && (dayOfWeek === 3 || dayOfWeek === 6)) runToday = true;
+                else if (task.type === "monthly" && dayOfMonth === 15) runToday = true;
+                else if (task.type === "once" && onceTaskDates[task.id] === currentStr) runToday = true;
+
+                if (runToday) {
+                    dayEvents.push(`<span class="tag-task">${task.name}</span>`);
+                    let xiuweiBonus = 0;
+
+                    if (hasItem('i7')) {
+                        xiuweiBonus += (task.name === "每日課") ? 360 : 120;
+                    }
+                    if (hasItem('i2') && task.name === "每日課") xiuweiBonus += 100;
+                    if (hasItem('i3') && task.name === "每日課") xiuweiBonus += 150;
+                    if (hasItem('i4') && task.name === "蓋婭的召喚") xiuweiBonus += 800;
+                    if (hasItem('i5') && task.name === "心成活動") xiuweiBonus += 600;
+                    if (hasItem('i6') && task.name.includes("主題")) xiuweiBonus += 2000;
+
+                    dayXiuwei += (task.xiuwei + xiuweiBonus);
+                    
+                    let goldEarned = task.gold;
+                    if (hasItem('i8')) goldEarned = Math.floor(goldEarned * 1.3);
+                    
+                    dayGoldChange += goldEarned; 
+                    totalGoldEarned += goldEarned; 
+                }
+            });
+
+            totalXiuwei += dayXiuwei;
+            netGoldAccum += dayGoldChange;
+
+            // 渲染至日誌
+            if (dayEvents.length > 0 || dayXiuwei > 0 || dayGoldChange !== 0) {
+                let goldChangeTd = "";
+                if (dayGoldChange > 0) {
+                    goldChangeTd = `<td class="num-plus">+${dayGoldChange}</td>`;
+                } else if (dayGoldChange < 0) {
+                    goldChangeTd = `<td class="num-minus">${dayGoldChange}</td>`;
+                } else {
+                    goldChangeTd = `<td>-</td>`;
+                }
+
+                let netGoldColor = netGoldAccum >= 0 ? "#f39c12" : "#e74c3c";
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="log-date">${dateLabel}</td>
+                    <td class="log-events">${dayEvents.join(' ')}</td>
+                    <td class="num-plus">${dayXiuwei > 0 ? '+' + dayXiuwei : '-'}</td>
+                    ${goldChangeTd}
+                    <td class="num-accum">${totalXiuwei.toLocaleString()}</td>
+                    <td class="num-accum" style="color:${netGoldColor};">${netGoldAccum.toLocaleString()}</td>
+                `;
+                logTbody.appendChild(tr);
+            }
+
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // 更新大看板 (包含初始值影響)
+        document.getElementById('totalXiuwei').innerText = totalXiuwei.toLocaleString();
+        document.getElementById('totalGold').innerText = totalGoldEarned.toLocaleString();
+        document.getElementById('totalCost').innerText = totalCost.toLocaleString();
+        
+        const finalNetGold = document.getElementById('netGold');
+        finalNetGold.innerText = netGoldAccum.toLocaleString();
+        finalNetGold.style.color = netGoldAccum >= 0 ? "#54a0ff" : "#ff7675";
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
